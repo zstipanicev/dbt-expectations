@@ -56,7 +56,8 @@ coalesce({{ metric_column }}, 0)
 
 {%- set sigma_threshold_upper = sigma_threshold_upper if sigma_threshold_upper else sigma_threshold -%}
 {%- set sigma_threshold_lower = sigma_threshold_lower if sigma_threshold_lower else -1 * sigma_threshold -%}
-{%- set partition_by = "partition by " ~ (group_by | join(",")) if group_by -%}
+{%- set partition_by = (group_by | join(",")) if group_by -%}
+{%- set partition_by_clause = "partition by " ~ partition_by if group_by -%}
 {%- set group_by_length = (group_by | length ) if group_by else 0 -%}
 
 with metric_values as (
@@ -65,7 +66,7 @@ with metric_values as (
 
         select
             {{ dbt.date_trunc(period, date_column_name) }} as metric_period,
-            {{ group_by | join(",") ~ "," if group_by }}
+            {{ partition_by ~ "," if group_by }}
             sum({{ column_name }}) as agg_metric_value
         from
             {{ model }}
@@ -77,9 +78,12 @@ with metric_values as (
 
         select
             *,
-            lag(agg_metric_value, {{ lookback_periods }}) over(
-                {{ partition_by }}
-                order by metric_period) as prior_agg_metric_value
+            {{ dbt_expectations.lag(value_field="agg_metric_value", offset=lookback_periods, partition_by=partition_by, order_by="metric_period") }}
+             as prior_agg_metric_value
+
+            -- lag(agg_metric_value, {{ lookback_periods }}) over(
+            --     {{ partition_by }}
+            --     order by metric_period) as prior_agg_metric_value
     from
         grouped_metric_values d
 
@@ -110,11 +114,11 @@ metric_moving_calcs as (
     select
         *,
         avg(metric_test_value)
-            over({{ partition_by }}
+            over({{ partition_by_clause }}
                     order by metric_period rows
                     between {{ trend_periods }} preceding and 1 preceding) as metric_test_rolling_average,
         stddev(metric_test_value)
-            over({{ partition_by }}
+            over({{ partition_by_clause }}
                     order by metric_period rows
                     between {{ trend_periods }} preceding and 1 preceding) as metric_test_rolling_stddev
     from

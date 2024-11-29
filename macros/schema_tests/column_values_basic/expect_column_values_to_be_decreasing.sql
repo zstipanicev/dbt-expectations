@@ -7,6 +7,7 @@
 
 {%- set sort_column = column_name if not sort_column else sort_column -%}
 {%- set operator = "<" if strictly else "<=" %}
+{%- set partition_by = group_by | join(", ") if group_by else "" -%}
 with all_values as (
 
     select
@@ -26,12 +27,8 @@ add_lag_values as (
     select
         sort_column,
         value_field,
-        lag(value_field) over
-            {%- if not group_by -%}
-                (order by sort_column)
-            {%- else -%}
-                (partition by {{ group_by | join(", ") }} order by sort_column)
-            {%- endif  %} as value_field_lag
+        {{ dbt_expectations.lag(value_field="value_field", partition_by=partition_by, order_by="sort_column") }}
+            as value_field_lag
     from
         all_values
 
@@ -43,7 +40,8 @@ validation_errors as (
     from
         add_lag_values
     where
-        value_field_lag is not null
+        value_field_lag is not null 
+        {% if target.type == 'clickhouse' -%}and value_field_lag <> 0 -- clickhouse will return data type default value which is not NULL and to get NULL we would need to know the data type of the value column to set the default to NULL, therefor this ugly hack {%- endif %}
         and
         not (
             (value_field {{ operator }} value_field_lag)
@@ -56,3 +54,4 @@ validation_errors as (
 select *
 from validation_errors
 {% endtest %}
+

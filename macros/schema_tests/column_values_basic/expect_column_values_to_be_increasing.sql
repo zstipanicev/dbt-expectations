@@ -7,12 +7,13 @@
 
 {%- set sort_column = column_name if not sort_column else sort_column -%}
 {%- set operator = ">" if strictly else ">=" -%}
+{%- set partition_by = group_by | join(", ") if group_by else "" -%}
 with all_values as (
 
     select
         {{ sort_column }} as sort_column,
         {%- if group_by -%}
-        {{ group_by | join(", ") }},
+        {{ partition_by }},
         {%- endif %}
         {{ column_name }} as value_field
     from {{ model }}
@@ -26,15 +27,11 @@ add_lag_values as (
     select
         sort_column,
         {%- if group_by -%}
-        {{ group_by | join(", ") }},
+        {{ partition_by }},
         {%- endif %}
         value_field,
-        lag(value_field) over
-            {%- if not group_by -%}
-                (order by sort_column)
-            {%- else -%}
-                (partition by {{ group_by | join(", ") }} order by sort_column)
-            {%- endif  %} as value_field_lag
+        {{ dbt_expectations.lag(value_field="value_field", partition_by=partition_by, order_by="sort_column") }}
+             as value_field_lag
     from
         all_values
 
