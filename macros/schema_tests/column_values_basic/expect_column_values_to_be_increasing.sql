@@ -5,6 +5,17 @@
                                                    group_by=None,
                                                    step=None) %}
 
+{{ adapter.dispatch('test_expect_column_values_to_be_increasing', 'dbt_expectations')(model, column_name, 
+                                                                                        sort_column, 
+                                                                                        strictly, 
+                                                                                        row_condition, 
+                                                                                        group_by, 
+                                                                                        step) }}
+
+{% endtest %}
+
+{% macro default__test_expect_column_values_to_be_increasing(model, column_name, sort_column, strictly, row_condition, group_by, step) %}
+
 {%- set sort_column = column_name if not sort_column else sort_column -%}
 {%- set operator = ">" if strictly else ">=" -%}
 {%- set partition_by = group_by | join(", ") if group_by else "" -%}
@@ -54,4 +65,4 @@ validation_errors as (
 )
 select *
 from validation_errors
-{% endtest %}
+{% endmacro %}
