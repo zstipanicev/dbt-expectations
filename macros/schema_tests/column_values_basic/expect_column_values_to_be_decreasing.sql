@@ -5,6 +5,17 @@
                                                    group_by=None,
                                                    step=None) %}
 
+{{ adapter.dispatch('test_expect_column_values_to_be_decreasing', 'dbt_expectations')(model, column_name, 
+                                                                                        sort_column, 
+                                                                                        strictly, 
+                                                                                        row_condition, 
+                                                                                        group_by, 
+                                                                                        step) }}
+{% endtest %}
+
+{% macro default__test_expect_column_values_to_be_decreasing(model, column_name, sort_column, strictly, row_condition, group_by, step) %}
+
+
 {%- set sort_column = column_name if not sort_column else sort_column -%}
 {%- set operator = "<" if strictly else "<=" %}
 {%- set partition_by = group_by | join(", ") if group_by else "" -%}
@@ -40,8 +51,7 @@ validation_errors as (
     from
         add_lag_values
     where
-        value_field_lag is not null 
-        {% if target.type == 'clickhouse' -%}and value_field_lag <> 0 -- clickhouse will return data type default value which is not NULL and to get NULL we would need to know the data type of the value column to set the default to NULL, therefor this ugly hack {%- endif %}
+        value_field_lag is not null         
         and
         not (
             (value_field {{ operator }} value_field_lag)
@@ -53,5 +63,4 @@ validation_errors as (
 )
 select *
 from validation_errors
-{% endtest %}
-
+{% endmacro %}
